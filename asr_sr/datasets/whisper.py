@@ -50,10 +50,11 @@ class WhisperDataset(Dataset):
 
 
 class BookWhisperDataset(WhisperDataset):
-    def __init__(self, dataset_dir, dataset_name, processor):
+    def __init__(self, dataset_dir, dataset_name, processor, pseudo_conf = None):
         reader = SegmentsTSVReader(
             dataset_dir=dataset_dir,
             dataset_name=dataset_name,
+            pseudo_conf=pseudo_conf,
         )
 
         super().__init__(

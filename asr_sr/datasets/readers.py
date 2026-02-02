@@ -62,10 +62,15 @@ class TSVFileReader(BaseReader):
         return audio, text, wav_path
 
 class SegmentsTSVReader(TSVFileReader):
-    def __init__(self, dataset_dir, dataset_name, tsv_name="segments.tsv"):
+    def __init__(self, dataset_dir, dataset_name, tsv_name="segments.tsv", pseudo_conf=None):
         tsv_path = os.path.join(dataset_dir, tsv_name)
 
         df = pd.read_csv(tsv_path, sep="\t", quoting=csv.QUOTE_NONE)
+        if pseudo_conf is not None:
+            df = df[df["pseudo_conf"] >= pseudo_conf].copy()
+            df = df.drop(columns=["sentence"])
+            df = df.rename(columns={"pseudo_text": "sentence"})
+
         df = df.dropna(subset=["path", "sentence"]).copy()
 
         super().__init__(

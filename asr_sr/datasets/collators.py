@@ -6,7 +6,7 @@ from transformers.feature_extraction_utils import BatchFeature
 
 class WhisperDataCollator:
     def __init__(self, processor):
-        self.processor = processor  # оставляю как у тебя, не типизирую WhisperProcessor
+        self.processor = processor
 
     def __call__(self, inputs) -> BatchFeature:
         input_features = [x["input_features"] for x in inputs]
