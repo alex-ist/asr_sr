@@ -58,7 +58,8 @@ class TSVFileReader(BaseReader):
         wav_path = self.get_wav_path(row)
         audio, sr = librosa.load(wav_path, sr=self.target_sr, mono=True)
         audio = audio.astype(np.float32, copy=False)
-        text = row["sentence"]
+        text = row["sentence"] if "sentence" in row else ""
+            
         return audio, text, wav_path
 
 class SegmentsTSVReader(TSVFileReader):
@@ -71,7 +72,11 @@ class SegmentsTSVReader(TSVFileReader):
             df = df.drop(columns=["sentence"])
             df = df.rename(columns={"pseudo_text": "sentence"})
 
-        df = df.dropna(subset=["path", "sentence"]).copy()
+        # Проверяем наличие колонки sentence
+        if "sentence" in df.columns:
+            df = df.dropna(subset=["path", "sentence"]).copy()
+        else:
+            df = df.dropna(subset=["path"]).copy()
 
         super().__init__(
             df=df,
