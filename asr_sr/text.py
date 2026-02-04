@@ -127,16 +127,14 @@ def normalize_sr_num(text):
     if not re.search(r"\d", text):
         return text
 
-    def num_to_text(n: int) -> str:
-        if n == 0:
-            return ""
+    def num_to_text(str_n: str) -> str:
+        # Direct lookup for numbers in the map                
+        if str_n in NUM_MAP:
+            return NUM_MAP[str_n]
         
-        # Direct lookup for numbers in the map
-        if str(n) in NUM_MAP:
-            return NUM_MAP[str(n)]
-        
+        n = int(str_n)
         if n > 10000:
-            return ""
+            return " "
         
         result = []
         # Thousands (1000-10000)
@@ -155,13 +153,11 @@ def normalize_sr_num(text):
         if n > 0:
             result.append(NUM_MAP[str(n)])
         
-        return "".join(result)
+        return " ".join(result)
 
     def repl(m: re.Match) -> str:
         s = m.group(0)
-        n = int(s)
-        text_num = num_to_text(n)
-        return text_num if text_num else ""
+        return num_to_text(s)
 
     return re.sub(r"\d+", repl, text)
 
