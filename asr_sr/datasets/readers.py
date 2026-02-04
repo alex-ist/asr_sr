@@ -69,7 +69,8 @@ class SegmentsTSVReader(TSVFileReader):
         df = pd.read_csv(tsv_path, sep="\t", quoting=csv.QUOTE_NONE)
         if pseudo_conf is not None:
             df = df[df["pseudo_conf"] >= pseudo_conf].copy()
-            df = df.drop(columns=["sentence"])
+            if "sentence" in df.columns:
+                df = df.drop(columns=["sentence"])
             df = df.rename(columns={"pseudo_text": "sentence"})
 
         # Проверяем наличие колонки sentence
