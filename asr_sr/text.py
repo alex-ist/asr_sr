@@ -112,15 +112,56 @@ NUM_MAP = {
     "800": " osamsto ",
     "900": " devetsto ",
     "1000": " hiljadu ",
+    "2000": " dve hiljade ",
+    "3000": " tri hiljade ",
+    "4000": " četiri hiljade ",     
+    "5000": " pet hiljada ",
+    "6000": " šest hiljada ",
+    "7000": " sedam hiljada ",
+    "8000": " osam hiljada ",
+    "9000": " devet hiljada ",
+    "10000": " deset hiljada ",
 }
 
 def normalize_sr_num(text):
     if not re.search(r"\d", text):
         return text
 
+    def num_to_text(n: int) -> str:
+        if n == 0:
+            return ""
+        
+        # Direct lookup for numbers in the map
+        if str(n) in NUM_MAP:
+            return NUM_MAP[str(n)]
+        
+        if n > 10000:
+            return ""
+        
+        result = []
+        # Thousands (1000-10000)
+        if n >= 1000:
+            thousands = (n // 1000) * 1000
+            result.append(NUM_MAP[str(thousands)])
+            n = n % 1000
+        
+        # Hundreds (100-900)
+        if n >= 100:
+            hundreds = (n // 100) * 100
+            result.append(NUM_MAP[str(hundreds)])
+            n = n % 100
+        
+        # Remainder (1-99)
+        if n > 0:
+            result.append(NUM_MAP[str(n)])
+        
+        return "".join(result)
+
     def repl(m: re.Match) -> str:
-        s = m.group(0)                # например "12" или "123"
-        return NUM_MAP.get(s, " ")    # если нет в словаре — удаляем
+        s = m.group(0)
+        n = int(s)
+        text_num = num_to_text(n)
+        return text_num if text_num else ""
 
     return re.sub(r"\d+", repl, text)
 
@@ -150,3 +191,4 @@ def normalize_sr_text(text):
     text = re.sub(r"[^a-zčćđšž'\s]", "", text)
     text = " ".join(text.split())
     return text
+
