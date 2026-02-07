@@ -65,6 +65,7 @@ class TSVFileReader(BaseReader):
 class SegmentsTSVReader(TSVFileReader):
     def __init__(self, dataset_dir, dataset_name, tsv_name="segments.tsv", pseudo_conf=None):
         tsv_path = os.path.join(dataset_dir, tsv_name)
+        self.pseudo_conf = pseudo_conf
 
         df = pd.read_csv(tsv_path, sep="\t", quoting=csv.QUOTE_NONE)
         if pseudo_conf is not None:
