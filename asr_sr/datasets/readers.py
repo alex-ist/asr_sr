@@ -22,6 +22,9 @@ class BaseReader:
 
     def total_duration(self):
         raise NotImplementedError
+    
+    def duration(self, idx: int) -> float:
+        raise NotImplementedError    
 
 
 class TSVFileReader(BaseReader):
@@ -45,12 +48,15 @@ class TSVFileReader(BaseReader):
                 return float(m.info.length)
         return float(librosa.get_duration(path=path))
 
+    def duration(self, idx: int) -> float:
+        row = self.df.iloc[idx]
+        wav_path = self.get_wav_path(row)
+        return self.duration_from_path(wav_path)
+
     def total_duration(self):
         total = 0.0
         for i in range(len(self.df)):
-            row = self.df.iloc[i]
-            wav_path = self.get_wav_path(row)
-            total += self.duration_from_path(wav_path)
+            total += self.duration(i)
         return total
 
     def get_audio_text(self, idx: int):
@@ -178,12 +184,14 @@ class HFDatasetReader(BaseReader):
 
         return 0.0
 
+    def duration(self, idx: int) -> float:
+        audio_cell = self.table.column("audio")[idx].as_py()
+        return self._hf_duration(audio_cell)
+
     def total_duration(self):
         total = 0.0
-        audio_col = self.table.column("audio")
-        for i in range(audio_col.length()):
-            audio_cell = audio_col[i].as_py()
-            total += self._hf_duration(audio_cell)
+        for i in range(len(self)):
+            total += self.duration(i)
         return total
 
     def get_audio_text(self, idx: int):
