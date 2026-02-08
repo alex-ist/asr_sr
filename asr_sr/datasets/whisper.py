@@ -108,9 +108,12 @@ class HFWhisperDataset(WhisperDataset):
 from torch.utils.data import Subset, ConcatDataset
 
 class WhisperSubset(Subset):
+    @property
+    def reader(self):
+        return self.dataset.reader
+
     def total_duration(self) -> float:
-        ds = self.dataset  
-        r = ds.reader
+        r = self.reader
         return sum(r.duration(i) for i in self.indices)        
     
 class WhisperConcatDataset(ConcatDataset):
