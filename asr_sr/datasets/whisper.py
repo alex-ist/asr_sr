@@ -117,6 +117,14 @@ class WhisperSubset(Subset):
         return sum(r.duration(i) for i in self.indices)        
     
 class WhisperConcatDataset(ConcatDataset):
+    @property
+    def reader(self):
+        # Return the reader of the first sub-dataset (for compatibility)
+        for ds in self.datasets:
+            if hasattr(ds, "reader"):
+                return ds.reader
+        raise AttributeError("No sub-dataset has a reader attribute")
+
     def total_duration(self) -> float:
         total = 0.0
         for ds in self.datasets:
