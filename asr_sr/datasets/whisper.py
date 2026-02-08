@@ -105,3 +105,22 @@ class HFWhisperDataset(WhisperDataset):
             dataset_name=dataset_name,
         )
         
+from torch.utils.data import Subset, ConcatDataset
+
+class WhisperSubset(Subset):
+    def total_duration(self) -> float:
+        ds = self.dataset  
+        r = ds.reader
+        return sum(r.duration(i) for i in self.indices)        
+    
+class WhisperConcatDataset(ConcatDataset):
+    def total_duration(self) -> float:
+        total = 0.0
+        for ds in self.datasets:
+            # ds может быть WhisperDataset, WhisperSubset, WhisperConcatDataset и т.д.
+            if hasattr(ds, "total_duration"):
+                total += ds.total_duration()
+            else:
+                # на всякий случай (если вдруг попадётся голый torch Subset без метода)
+                raise TypeError(f"Dataset {type(ds)} has no total_duration()")
+        return total    
