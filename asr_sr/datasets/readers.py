@@ -8,11 +8,14 @@ import pandas as pd
 import librosa
 import soundfile as sf
 
-from datasets import load_dataset, load_from_disk
+from datasets import load_dataset, load_from_disk, Audio
 from mutagen.mp3 import MP3
 
 
 class BaseReader:
+    MIN_AUDIO_SEC = 0.2
+    MAX_AUDIO_SEC = 30.0
+
     def __len__(self):
         raise NotImplementedError
 
@@ -20,11 +23,11 @@ class BaseReader:
         """Return: (audio: np.ndarray float32 mono 16k, text: str, uid: str)"""
         raise NotImplementedError
 
-    def total_duration(self):
-        raise NotImplementedError
-    
+    def total_duration(self) -> float:
+        return sum(self.lengths)
+
     def duration(self, idx: int) -> float:
-        raise NotImplementedError    
+        raise NotImplementedError
 
 
 class TSVFileReader(BaseReader):
@@ -53,11 +56,33 @@ class TSVFileReader(BaseReader):
         wav_path = self.get_wav_path(row)
         return self.duration_from_path(wav_path)
 
-    def total_duration(self):
-        total = 0.0
-        for i in range(len(self.df)):
-            total += self.duration(i)
-        return total
+    def filter_by_duration(self):
+        """Фильтрует df по длительности, заполняет self.lengths."""
+        if "duration" not in self.df.columns:
+            durations = []
+            for i in range(len(self.df)):
+                try:
+                    durations.append(self.duration(i))
+                except Exception:
+                    durations.append(0.0)
+            self.df["duration"] = durations
+
+        original_len = len(self.df)
+        too_short = int((self.df["duration"] < self.MIN_AUDIO_SEC).sum())
+        too_long = int((self.df["duration"] > self.MAX_AUDIO_SEC).sum())
+
+        self.df = self.df[
+            (self.df["duration"] >= self.MIN_AUDIO_SEC)
+            & (self.df["duration"] <= self.MAX_AUDIO_SEC)
+        ].reset_index(drop=True)
+
+        self.lengths = self.df["duration"].astype(float).tolist()
+
+        print(f"Reader '{self.dataset_name}':")
+        print(f"  Original: {original_len} samples")
+        print(f"  Removed too short (<{self.MIN_AUDIO_SEC}s): {too_short}")
+        print(f"  Removed too long (>{self.MAX_AUDIO_SEC}s): {too_long}")
+        print(f"  Kept: {len(self.df)} samples")
 
     def get_audio_text(self, idx: int):
         row = self.df.iloc[idx]
@@ -65,7 +90,7 @@ class TSVFileReader(BaseReader):
         audio, sr = librosa.load(wav_path, sr=self.target_sr, mono=True)
         audio = audio.astype(np.float32, copy=False)
         text = row["sentence"] if "sentence" in row else ""
-            
+
         return audio, text, wav_path
 
 class SegmentsTSVReader(TSVFileReader):
@@ -91,6 +116,7 @@ class SegmentsTSVReader(TSVFileReader):
             dataset_dir=dataset_dir,
             dataset_name=dataset_name,
         )
+        self.filter_by_duration()
 
     def get_wav_path(self, row):
         return os.path.join(self.dataset_dir, "clips", row["path"])
@@ -116,16 +142,16 @@ class YodasCTCReader(TSVFileReader):
             dataset_dir=dataset_dir,
             dataset_name="yodas_sr",
         )
+        self.filter_by_duration()
 
     def get_wav_path(self, row):
         return os.path.join(self.dataset_dir, "audio", f"{row['utt_id']}.flac")
 
 
-
-
 class HFDatasetReader(BaseReader):
     def __init__(self, dataset_dir, split, dataset_name=None):
         self.path = f"{dataset_dir}/{split}"
+        self.split = split
         if dataset_name is None:
             self.ds = load_from_disk(self.path).with_format(None)
             self.dataset_name = os.path.basename(dataset_dir.rstrip("/"))
@@ -137,6 +163,8 @@ class HFDatasetReader(BaseReader):
             )
             self.dataset_name = dataset_name
 
+        # отключаем встроенный декодер аудио (избегаем torchaudio)
+        self.ds = self.ds.cast_column("audio", Audio(decode=False))
         self.table = self.ds.data
         self.target_sr = 16000
 
@@ -144,6 +172,8 @@ class HFDatasetReader(BaseReader):
         self.text_col = next((c for c in candidates if c in self.ds.column_names), None)
         if self.text_col is None:
             raise ValueError(f"нет текстовой колонки. Есть колонки: {self.ds.column_names}")
+
+        self._filter_by_duration()
 
     def __len__(self):
         return len(self.ds)
@@ -156,6 +186,9 @@ class HFDatasetReader(BaseReader):
         else:
             wav_bytes = audio_cell["bytes"]
             audio, sr = sf.read(io.BytesIO(wav_bytes), dtype="float32")
+
+        if audio.size == 0:
+            raise ValueError("empty audio (0 samples)")
 
         if audio.ndim == 2:
             audio = audio.mean(axis=1)
@@ -172,6 +205,8 @@ class HFDatasetReader(BaseReader):
         # bytes
         if isinstance(audio_cell, dict) and "bytes" in audio_cell and audio_cell["bytes"] is not None:
             info = sf.info(io.BytesIO(audio_cell["bytes"]))
+            if info.frames == 0:
+                return 0.0
             return float(info.frames) / float(info.samplerate)
 
         # array + sampling_rate
@@ -185,20 +220,52 @@ class HFDatasetReader(BaseReader):
         return 0.0
 
     def duration(self, idx: int) -> float:
-        audio_cell = self.table.column("audio")[idx].as_py()
+        audio_cell = self.ds[idx]["audio"]
         return self._hf_duration(audio_cell)
 
-    def total_duration(self):
-        total = 0.0
-        for i in range(len(self)):
-            total += self.duration(i)
-        return total
+    def _filter_by_duration(self):
+        """Фильтрует HF dataset по длительности, заполняет self.lengths."""
+        keep = []
+        keep_durations = []
+        too_short = 0
+        too_long = 0
+        unreadable = 0
+        # до select() таблица совпадает с ds, можно читать напрямую
+        audio_col = self.table.column("audio")
+
+        for i in range(len(self.ds)):
+            try:
+                dur = self._hf_duration(audio_col[i].as_py())
+                if dur < self.MIN_AUDIO_SEC:
+                    too_short += 1
+                elif dur > self.MAX_AUDIO_SEC:
+                    too_long += 1
+                else:
+                    keep.append(i)
+                    keep_durations.append(float(dur))
+            except Exception:
+                unreadable += 1
+
+        original_len = len(self.ds)
+        self.ds = self.ds.select(keep)
+        # после select() ds.data может быть оригинальной таблицей
+        # с индексным маппингом — НЕ используем self.table напрямую
+        self.lengths = keep_durations
+
+        print(f"Reader '{self.dataset_name}/{self.split}':")
+        print(f"  Original: {original_len} samples")
+        if too_short:
+            print(f"  Removed too short (<{self.MIN_AUDIO_SEC}s): {too_short}")
+        if too_long:
+            print(f"  Removed too long (>{self.MAX_AUDIO_SEC}s): {too_long}")
+        if unreadable:
+            print(f"  Unreadable: {unreadable}")
+        if too_long or too_short or unreadable:
+            print(f"  Kept: {len(self.ds)} samples")
 
     def get_audio_text(self, idx: int):
-        row = self.table.slice(idx, 1)
-        audio_cell = row.column("audio")[0].as_py()
-        
-        
-        text = row.column(self.text_col)[0].as_py()
+        row = self.ds[idx]
+        audio_cell = row["audio"]
+        text = row[self.text_col]
         audio = self._hf_audio_to_np(audio_cell)
         return audio, text, f"{idx}"

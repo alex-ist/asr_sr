@@ -112,9 +112,13 @@ class WhisperSubset(Subset):
     def reader(self):
         return self.dataset.reader
 
+    @property
+    def lengths(self):
+        base = self.dataset.reader.lengths
+        return [base[i] for i in self.indices]
+
     def total_duration(self) -> float:
-        r = self.reader
-        return sum(r.duration(i) for i in self.indices)        
+        return sum(self.lengths)        
     
 class WhisperConcatDataset(ConcatDataset):
     @property
@@ -124,6 +128,18 @@ class WhisperConcatDataset(ConcatDataset):
             if hasattr(ds, "reader"):
                 return ds.reader
         raise AttributeError("No sub-dataset has a reader attribute")
+
+    @property
+    def lengths(self):
+        out = []
+        for ds in self.datasets:
+            if hasattr(ds, "lengths"):
+                out.extend(ds.lengths)
+            elif hasattr(ds, "reader"):
+                out.extend(ds.reader.lengths)
+            else:
+                raise TypeError(f"Dataset {type(ds)} has no lengths")
+        return out
 
     def total_duration(self) -> float:
         total = 0.0
