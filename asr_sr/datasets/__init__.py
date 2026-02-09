@@ -3,4 +3,4 @@ from .whisper import HFWhisperDataset, YodasWhisperDataset, CommonVoiceWhisperDa
 from .whisper import WhisperSubset, WhisperConcatDataset
 from .conformer import ConformerDataset, BookConformerDataset, CommonVoiceConformerDataset, YodasConformerDataset, HFConformerDataset
 from .conformer import ConformerSubset, ConformerConcatDataset, collate_fn, NoisyBucketBatchSampler
-from .collators import WhisperDataCollator
+from .collators import WhisperDataCollator, ConformerDataCollator

@@ -1,5 +1,5 @@
 # asr_sr/datasets/whisper.py
-import numpy as np
+import torch
 from torch.utils.data import Dataset
 
 from ..text import normalize_sr_text
@@ -34,20 +34,22 @@ class WhisperDataset(Dataset):
             audio,
             sampling_rate=self.target_sr,
             padding="max_length",
-        ).input_features[0].astype(np.float32)
+        ).input_features[0]  # np.ndarray (n_mels, 3000)
+        f = torch.from_numpy(f)  # (n_mels, 3000), float32
 
         # input_length в Whisper — это количество  входного аудио.
         # а fetures len всегда 3000 фреймов (30s)
         input_length = int(len(audio) * 100 / self.target_sr)
-        labels = self.tokenizer(text).input_ids
-
-        if len(labels) > self.max_target_length:
+        idxs = self.tokenizer(text).input_ids
+        if len(idxs) > self.max_target_length:
             print(f"Warning: target length {len(labels)} exceeds max_target_length at {uid}")
+        labels = torch.LongTensor(idxs)
+
 
         return {
-            "labels": labels,
             "input_features": f,
             "input_length": input_length,
+            "labels": labels,
             "dataset_name": self.dataset_name,
             "text": text,
             "path": uid,

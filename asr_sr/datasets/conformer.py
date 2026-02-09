@@ -4,7 +4,6 @@ import random
 from typing import List
 
 import torch
-import numpy as np
 from torch.utils.data import Dataset, Subset, ConcatDataset, Sampler
 
 from ..text import normalize_sr_text
@@ -43,14 +42,13 @@ class ConformerDataset(Dataset):
 
         idxs = self.processor.text_to_indices(text)
         label_indices = torch.tensor(idxs, dtype=torch.long)
-        label_length = len(label_indices)
 
         return {
-            "features": features,
+            "input_features": features,
             "input_length": input_length,
             "labels": label_indices,
-            "label_length": label_length,
-            "transcript": text,
+            "dataset_name": self.dataset_name,
+            "text": text,
             "path": uid,
         }
 
