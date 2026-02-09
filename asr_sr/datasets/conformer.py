@@ -30,14 +30,12 @@ class ConformerDataset(Dataset):
     def __len__(self):
         return len(self.reader)
 
-    def __getitem__(self, idx: int):
-        audio, text, uid = self.reader.get_audio_text(idx)
-        if audio.shape[0] == 0:
-            pass
-            raise ValueError(f"Audio length is zero at index {idx} (uid={uid}) in dataset {self.dataset_name}")
-            
-            
+    def get_audio_text(self, idx: int):
+        return self.reader.get_audio_text(idx)
 
+    def __getitem__(self, idx: int):
+        audio, text, uid = self.get_audio_text(idx)
+            
         text = normalize_sr_text(text)
 
         features = self.processor.audio_to_features(audio)

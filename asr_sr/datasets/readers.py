@@ -80,9 +80,12 @@ class TSVFileReader(BaseReader):
 
         print(f"Reader '{self.dataset_name}':")
         print(f"  Original: {original_len} samples")
-        print(f"  Removed too short (<{self.MIN_AUDIO_SEC}s): {too_short}")
-        print(f"  Removed too long (>{self.MAX_AUDIO_SEC}s): {too_long}")
-        print(f"  Kept: {len(self.df)} samples")
+        if too_short:
+            print(f"  Removed too short (<{self.MIN_AUDIO_SEC}s): {too_short}")
+        if too_long:
+            print(f"  Removed too long (>{self.MAX_AUDIO_SEC}s): {too_long}")
+        if too_long or too_short:
+            print(f"  Kept: {len(self.df)} samples")
 
     def get_audio_text(self, idx: int):
         row = self.df.iloc[idx]

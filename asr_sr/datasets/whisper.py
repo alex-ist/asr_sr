@@ -21,8 +21,11 @@ class WhisperDataset(Dataset):
     def total_duration(self):
         return self.reader.total_duration()
 
+    def get_audio_text(self, idx: int):
+        return self.reader.get_audio_text(idx)
+
     def __getitem__(self, idx: int):
-        audio, text, uid = self.reader.get_audio_text(idx)
+        audio, text, uid = self.get_audio_text(idx)
 
         text = normalize_sr_text(text)
         text = " " + text.strip()  # Whisper генерирует с ведущим пробелом
@@ -33,6 +36,8 @@ class WhisperDataset(Dataset):
             padding="max_length",
         ).input_features[0].astype(np.float32)
 
+        # input_length в Whisper — это количество  входного аудио.
+        # а fetures len всегда 3000 фреймов (30s)
         input_length = int(len(audio) * 100 / self.target_sr)
         labels = self.tokenizer(text).input_ids
 
