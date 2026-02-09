@@ -137,6 +137,9 @@ class ConformerSubset(Subset):
     def total_duration(self) -> float:
         return sum(self.lengths)
 
+    def get_audio_text(self, idx: int):
+        return self.dataset.get_audio_text(self.indices[idx])
+
 
 class ConformerConcatDataset(ConcatDataset):
     @property
@@ -157,6 +160,12 @@ class ConformerConcatDataset(ConcatDataset):
             else:
                 raise TypeError(f"Dataset {type(ds)} has no total_duration()")
         return total
+
+    def get_audio_text(self, idx: int):
+        from bisect import bisect_right
+        ds_idx = bisect_right(self.cumulative_sizes, idx)
+        sample_idx = idx - (self.cumulative_sizes[ds_idx - 1] if ds_idx > 0 else 0)
+        return self.datasets[ds_idx].get_audio_text(sample_idx)
 
 
 # ===== Lengths / Sampler =====
