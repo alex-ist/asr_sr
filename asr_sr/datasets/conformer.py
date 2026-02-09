@@ -125,6 +125,10 @@ def collate_fn(batch):
 
 # ===== Subset / ConcatDataset =====
 class ConformerSubset(Subset):
+    def __init__(self, dataset, indices, dataset_name=None):
+        super().__init__(dataset, indices)
+        self.dataset_name = dataset_name or getattr(dataset, "dataset_name", type(dataset).__name__)
+
     @property
     def reader(self):
         return self.dataset.reader
@@ -167,40 +171,3 @@ class ConformerConcatDataset(ConcatDataset):
         sample_idx = idx - (self.cumulative_sizes[ds_idx - 1] if ds_idx > 0 else 0)
         return self.datasets[ds_idx].get_audio_text(sample_idx)
 
-
-# ===== Lengths / Sampler =====
-class NoisyBucketBatchSampler(Sampler):
-    """Семплер: батчи из похожих по длине элементов с небольшим шумом."""
-
-    def __init__(self, lengths, batch_size, shuffle=True):
-        self.lengths = list(lengths)
-        self.batch_size = batch_size
-        self.shuffle = shuffle
-        self.noise = 0.05 if shuffle else 0.0
-
-    def __iter__(self):
-        n = len(self.lengths)
-
-        if self.noise > 1e-6:
-            noisy_lengths = [
-                self.lengths[i] * (1.0 + random.uniform(-self.noise, self.noise))
-                for i in range(n)
-            ]
-        else:
-            noisy_lengths = self.lengths
-
-        sorted_indices = sorted(range(n), key=lambda i: noisy_lengths[i])
-
-        batches = [
-            sorted_indices[i : i + self.batch_size]
-            for i in range(0, n, self.batch_size)
-        ]
-
-        if self.shuffle:
-            random.shuffle(batches)
-
-        for batch in batches:
-            yield batch
-
-    def __len__(self):
-        return math.ceil(len(self.lengths) / self.batch_size)

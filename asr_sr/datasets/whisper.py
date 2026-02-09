@@ -115,6 +115,10 @@ class HFWhisperDataset(WhisperDataset):
 from torch.utils.data import Subset, ConcatDataset
 
 class WhisperSubset(Subset):
+    def __init__(self, dataset, indices, dataset_name=None):
+        super().__init__(dataset, indices)
+        self.dataset_name = dataset_name or getattr(dataset, "dataset_name", type(dataset).__name__)
+    
     @property
     def reader(self):
         return self.dataset.reader
