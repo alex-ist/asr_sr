@@ -56,6 +56,7 @@ class WhisperDataset(Dataset):
         }
 
 
+#fixme: dataset_name после processor'а - когда будет сдан проект
 class BookWhisperDataset(WhisperDataset):
     def __init__(self, dataset_dir, dataset_name, processor, pseudo_conf = None):
         reader = SegmentsTSVReader(
@@ -109,7 +110,7 @@ class HFWhisperDataset(WhisperDataset):
         super().__init__(
             reader=reader,
             processor=processor,
-            dataset_name=dataset_name,
+            dataset_name=dataset_name or reader.dataset_name,
         )
         
 from torch.utils.data import Subset, ConcatDataset

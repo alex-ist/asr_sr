@@ -1,6 +1,4 @@
 # asr_sr/datasets/conformer.py
-import math
-import random
 from typing import List
 
 import torch
@@ -99,30 +97,6 @@ class HFConformerDataset(ConformerDataset):
             dataset_name=dataset_name or reader.dataset_name,
         )
 
-
-# ===== Collate =====
-
-def collate_fn(batch):
-    """Батчинг последовательностей разной длины."""
-    features = [item["features"] for item in batch]
-    labels = [item["labels"] for item in batch]
-    input_lengths = torch.tensor([item["input_length"] for item in batch], dtype=torch.long)
-    label_lengths = torch.tensor([item["label_length"] for item in batch], dtype=torch.long)
-
-    features_padded = torch.nn.utils.rnn.pad_sequence(features, batch_first=True)
-    labels_padded = torch.nn.utils.rnn.pad_sequence(labels, batch_first=True, padding_value=0)
-
-    transcripts = [item["transcript"] for item in batch]
-
-    return {
-        "features": features_padded,      # (B, T_max, n_mels)
-        "labels": labels_padded,           # (B, L_max)
-        "input_lengths": input_lengths,    # (B,)
-        "label_lengths": label_lengths,    # (B,)
-        "transcripts": transcripts,
-    }
-
-
 # ===== Subset / ConcatDataset =====
 class ConformerSubset(Subset):
     def __init__(self, dataset, indices, dataset_name=None):
@@ -170,4 +144,3 @@ class ConformerConcatDataset(ConcatDataset):
         ds_idx = bisect_right(self.cumulative_sizes, idx)
         sample_idx = idx - (self.cumulative_sizes[ds_idx - 1] if ds_idx > 0 else 0)
         return self.datasets[ds_idx].get_audio_text(sample_idx)
-
