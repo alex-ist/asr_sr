@@ -116,3 +116,36 @@ def normalize_sr_text(text):
     text = " ".join(text.split())
     return text
 
+
+
+def is_repetition_loop(text, duration_sec, max_words_per_sec=8.0, min_unique_ratio=0.3):
+    """
+    Проверяет, является ли текст результатом зацикливания Whisper.
+    Returns:
+        True если текст похож на зацикливание, False если нормальный.
+    """
+    words = text.strip().split()
+    if len(words) == 0:
+        return True  # пустой текст тоже фильтруем
+
+    if any(len(w) > 30 for w in words):
+        return True
+    
+    # 1. Слишком много слов на секунду аудио
+    wps = len(words) / max(duration_sec, 0.1)
+    if wps > max_words_per_sec:
+        return True
+    
+    # 2. Слишком мало уникальных слов (повторы)
+    unique_ratio = len(set(words)) / len(words)
+    if len(words) >= 5 and unique_ratio < min_unique_ratio:
+        return True
+    
+    # 3. Самое частое слово повторяется слишком много раз
+    if len(words) >= 4:
+        from collections import Counter
+        most_common_count = Counter(words).most_common(1)[0][1]
+        if most_common_count / len(words) > 0.7:
+            return True
+    
+    return False
