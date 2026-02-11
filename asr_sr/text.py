@@ -1,5 +1,6 @@
 from srtools import cyrillic_to_latin
 import re
+from collections import Counter
 
 _ONES = ["", "jedan", "dva", "tri", "četiri", "pet", "šest", "sedam", "osam", "devet"]
 _TEENS = [
@@ -118,7 +119,7 @@ def normalize_sr_text(text):
 
 
 
-def is_repetition_loop(text, duration_sec, max_words_per_sec=8.0, min_unique_ratio=0.3):
+def is_repetition_loop(text, duration_sec=None):
     """
     Проверяет, является ли текст результатом зацикливания Whisper.
     Returns:
@@ -132,20 +133,97 @@ def is_repetition_loop(text, duration_sec, max_words_per_sec=8.0, min_unique_rat
         return True
     
     # 1. Слишком много слов на секунду аудио
-    wps = len(words) / max(duration_sec, 0.1)
-    if wps > max_words_per_sec:
-        return True
+    if duration_sec:
+        max_words_per_sec=8.0
+        wps = len(words) / max(duration_sec, 0.1)
+        if wps > max_words_per_sec:
+            return True
     
     # 2. Слишком мало уникальных слов (повторы)
+    min_unique_ratio = 0.4
     unique_ratio = len(set(words)) / len(words)
     if len(words) >= 5 and unique_ratio < min_unique_ratio:
         return True
     
     # 3. Самое частое слово повторяется слишком много раз
     if len(words) >= 4:
-        from collections import Counter
         most_common_count = Counter(words).most_common(1)[0][1]
         if most_common_count / len(words) > 0.7:
             return True
-    
+
+    # 4. Проверяем последовательные повторы в конце (локальное зацикливание)
+    if len(words) >= 4:
+        # Считаем, сколько раз подряд повторяется последнее слово
+        last_word = words[-1]
+        consecutive_count = 1
+        for i in range(len(words) - 2, -1, -1):
+            if words[i] == last_word:
+                consecutive_count += 1
+                # Выходим сразу, как только нашли 4 повтора - это зацикливание
+                if consecutive_count >= 4:
+                    return True
+            else:
+                break
+
     return False
+
+
+def remove_repetition_loops(text, duration_sec=None):
+    """
+    Удаляет зацикливания из текста, выданного Whisper моделью.
+    Оставляет первое вхождение повторяющегося паттерна.
+    
+    Args:
+        text: исходный текст
+        duration_sec: длительность аудио в секундах (опционально)
+    
+    Returns:
+        Очищенный текст без зацикливаний
+    """
+    if not text:
+        return ""
+    
+    if not is_repetition_loop(text, duration_sec):
+        return text
+    
+    words = text.strip().split()
+    if len(words) == 0:
+        return ""
+    
+    # 1. Обрезаем с позиции первого длинного слова (>30 символов)
+    for i, word in enumerate(words):
+        if len(word) > 30:
+            if i == 0:
+                return ""
+            return " ".join(words[:i]).strip()
+    
+    # 2. Ищем повторяющиеся слова с конца
+    cutoff_idx = len(words)
+    min_repeat_count = 4
+
+    if len(words) >= min_repeat_count:
+        # Берем последнее слово
+        last_word = words[-1]
+
+        # Считаем, сколько раз оно повторяется подряд с конца
+        repeat_count = 1
+        for i in range(len(words) - 2, -1, -1):
+            if words[i] == last_word:
+                repeat_count += 1
+            else:
+                break
+
+        # Если нашли зацикливание (4+ повтора)
+        if repeat_count >= min_repeat_count:
+            # Обрезаем, оставляя только первое вхождение слова
+            cutoff_idx = len(words) - repeat_count + 1
+    
+    cleaned_words = words[:cutoff_idx]
+    
+    if len(cleaned_words) == 0:
+        # Если всё обрезали, оставляем хотя бы первое слово
+        return words[0] if words else ""
+    
+    result = " ".join(cleaned_words).strip()
+    
+    return result

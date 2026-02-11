@@ -6,7 +6,8 @@ from torch.utils.data import Sampler
 class NoisyBucketBatchSampler(Sampler):
     def __init__(self, lengths, batch_size, shuffle=True, sort=True, sample_weights=None):
         """
-        семплер создаёт батчи из похожих по длине элементов, с небольшим шумом, чтобы порядок менялся от эпохи к эпохе
+        семплер создаёт батчи из похожих по длине элементов, 
+        с небольшим шумом, чтобы порядок менялся от эпохи к эпохе
 
         lengths: список длин (float) для каждого элемента датасета (duration_sec)
         batch_size: размер батча
