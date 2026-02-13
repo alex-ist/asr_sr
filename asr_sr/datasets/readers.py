@@ -162,9 +162,11 @@ class YodasCTCReader(TSVFileReader):
 
 
 class HFDatasetReader(BaseReader):
-    def __init__(self, dataset_dir, split, dataset_name=None):
+    def __init__(self, dataset_dir, split, dataset_name=None, exclude_paths=None):
         self.path = f"{dataset_dir}/{split}"
         self.split = split
+        self.exclude_paths = set(exclude_paths) if exclude_paths else set()
+
         if dataset_name is None:
             self.ds = load_from_disk(self.path).with_format(None)
             self.dataset_name = os.path.basename(dataset_dir.rstrip("/"))
@@ -243,12 +245,22 @@ class HFDatasetReader(BaseReader):
         too_short = 0
         too_long = 0
         unreadable = 0
+        excluded_by_path = 0
         # до select() таблица совпадает с ds, можно читать напрямую
         audio_col = self.table.column("audio")
 
         for i in range(len(self.ds)):
             try:
-                dur = self._hf_duration(audio_col[i].as_py())
+                audio_cell = audio_col[i].as_py()
+
+                # Проверяем, не исключен ли этот путь
+                if self.exclude_paths:
+                    audio_path = audio_cell.get("path", "") if isinstance(audio_cell, dict) else ""
+                    if audio_path in self.exclude_paths:
+                        excluded_by_path += 1
+                        continue
+
+                dur = self._hf_duration(audio_cell)
                 if dur < self.MIN_AUDIO_SEC:
                     too_short += 1
                 elif dur > self.MAX_AUDIO_SEC:
@@ -267,13 +279,15 @@ class HFDatasetReader(BaseReader):
 
         print(f"Reader '{self.dataset_name}/{self.split}':")
         print(f"  Original: {original_len} samples")
+        if excluded_by_path:
+            print(f"  Excluded by path: {excluded_by_path}")
         if too_short:
             print(f"  Removed too short (<{self.MIN_AUDIO_SEC}s): {too_short}")
         if too_long:
             print(f"  Removed too long (>{self.MAX_AUDIO_SEC}s): {too_long}")
         if unreadable:
             print(f"  Unreadable: {unreadable}")
-        if too_long or too_short or unreadable:
+        if too_long or too_short or unreadable or excluded_by_path:
             print(f"  Kept: {len(self.ds)} samples")
 
     def get_audio_text(self, idx: int):

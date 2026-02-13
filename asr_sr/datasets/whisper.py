@@ -28,6 +28,26 @@ class WhisperDataset(Dataset):
         """Load audio from path and return as numpy array (float32, mono, 16kHz)."""
         return self.reader.load_audio_from_path(path)
 
+    def create_subset_by_paths(self, paths, dataset_name=None):
+        """Create a subset containing only samples with paths in the given list.
+
+        Args:
+            paths: list of paths (strings) to include in the subset
+            dataset_name: optional name for the subset
+
+        Returns:
+            WhisperSubset with only the matching samples
+        """
+        paths_set = set(paths)
+        indices = []
+
+        for idx in range(len(self)):
+            _, _, uid = self.get_audio_text(idx)
+            if uid in paths_set:
+                indices.append(idx)
+
+        return WhisperSubset(self, indices, dataset_name=dataset_name)
+
     def __getitem__(self, idx: int):
         audio, text, uid = self.get_audio_text(idx)
 
@@ -103,12 +123,13 @@ class YodasWhisperDataset(WhisperDataset):
 
 # ===== HF =====
 class HFWhisperDataset(WhisperDataset):
-    def __init__(self, dataset_dir, split, processor, dataset_name=None):
+    def __init__(self, dataset_dir, split, processor, dataset_name=None, exclude_paths=None):
 
         reader = HFDatasetReader(
             dataset_dir=dataset_dir,
             split=split,
             dataset_name=dataset_name,
+            exclude_paths=exclude_paths,
         )
 
         super().__init__(

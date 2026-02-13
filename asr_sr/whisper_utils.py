@@ -25,18 +25,16 @@ def compute_avg_logprob(
     active = torch.ones(batch_sz, device=generated_ids.device, dtype=torch.bool)
 
     # Пропускаем первые prompt_len токенов (спец символы)
-    for t, step in enumerate(scores[prompt_len:], start=prompt_len):
+    for t, step in enumerate(scores[prompt_len:], start=prompt_len+1):
         tok = generated_ids[:, t]
         logp = F.log_softmax(step, dim=-1)
         lp = logp.gather(1, tok[:, None]).squeeze(1)
 
-        is_special = tok >= eos_id
+        # Count current token while still active (include EOS token itself)
+        sum_lp += lp * active
+        tok_count += active.to(tok_count.dtype)
 
-        # Count current token while still active (include EOS token itself),
-        # then deactivate sequence for subsequent steps.
-        add_mask = active & (~is_special)
-        sum_lp += lp * add_mask
-        tok_count += add_mask.to(tok_count.dtype)
+        # Then deactivate sequence for subsequent steps
         active = active & (tok != eos_id)
 
     return (sum_lp / tok_count.clamp(min=1)).cpu().tolist()
