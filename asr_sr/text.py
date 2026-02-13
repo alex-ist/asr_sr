@@ -182,10 +182,7 @@ def remove_repetition_loops(text, duration_sec=None):
     """
     if not text:
         return ""
-    
-    if not is_repetition_loop(text, duration_sec):
-        return text
-    
+
     words = text.strip().split()
     if len(words) == 0:
         return ""

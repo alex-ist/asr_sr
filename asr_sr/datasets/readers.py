@@ -29,6 +29,10 @@ class BaseReader:
     def duration(self, idx: int) -> float:
         raise NotImplementedError
 
+    def load_audio_from_path(self, path: str):
+        """Load audio from path and return as numpy array (float32, mono, 16kHz)."""
+        raise NotImplementedError
+
 
 class TSVFileReader(BaseReader):
     def __init__(self, df, dataset_dir, dataset_name):
@@ -95,6 +99,12 @@ class TSVFileReader(BaseReader):
         text = row["sentence"] if "sentence" in row else ""
 
         return audio, text, wav_path
+
+    def load_audio_from_path(self, path: str):
+        """Load audio from path and return as numpy array (float32, mono, 16kHz)."""
+        audio, sr = librosa.load(path, sr=self.target_sr, mono=True)
+        audio = audio.astype(np.float32, copy=False)
+        return audio
 
 class SegmentsTSVReader(TSVFileReader):
     def __init__(self, dataset_dir, dataset_name, tsv_name="segments.tsv", pseudo_conf=None):
@@ -272,3 +282,10 @@ class HFDatasetReader(BaseReader):
         text = row[self.text_col]
         audio = self._hf_audio_to_np(audio_cell)
         return audio, text, f"{idx}"
+
+    def load_audio_from_path(self, path: str):
+        """Load audio from path (idx string for HF dataset) and return as numpy array."""
+        # Для HF dataset path это строка с индексом
+        idx = int(path)
+        audio_cell = self.ds[idx]["audio"]
+        return self._hf_audio_to_np(audio_cell)

@@ -24,6 +24,10 @@ class WhisperDataset(Dataset):
     def get_audio_text(self, idx: int):
         return self.reader.get_audio_text(idx)
 
+    def load_audio_from_path(self, path: str):
+        """Load audio from path and return as numpy array (float32, mono, 16kHz)."""
+        return self.reader.load_audio_from_path(path)
+
     def __getitem__(self, idx: int):
         audio, text, uid = self.get_audio_text(idx)
 
