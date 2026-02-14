@@ -9,6 +9,7 @@ class WhisperDataCollator:
 
     def __call__(self, inputs) -> BatchFeature:
         input_features = [x["input_features"] for x in inputs]
+        
         input_features_batch = torch.stack(input_features)
         input_lengths = torch.LongTensor([x["input_length"] for x in inputs])
 

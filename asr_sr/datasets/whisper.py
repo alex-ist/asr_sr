@@ -58,17 +58,17 @@ class WhisperDataset(Dataset):
             audio,
             sampling_rate=self.target_sr,
             padding="max_length",
+            return_tensors="pt"
         ).input_features[0]  # np.ndarray (n_mels, 3000)
-        f = torch.from_numpy(f)  # (n_mels, 3000), float32
 
         # input_length в Whisper — это количество  входного аудио.
         # а fetures len всегда 3000 фреймов (30s)
-        input_length = int(len(audio) * 100 / self.target_sr)
+        input_length = len(audio)//160
         idxs = self.tokenizer(text).input_ids
         if len(idxs) > self.max_target_length:
             print(f"Warning: target length {len(labels)} exceeds max_target_length at {uid}")
+        
         labels = torch.LongTensor(idxs)
-
 
         return {
             "input_features": f,
