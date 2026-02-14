@@ -242,10 +242,14 @@ class HFDatasetReader(BaseReader):
         """Фильтрует HF dataset по длительности, заполняет self.lengths."""
         keep = []
         keep_durations = []
+        self.audio_paths = {}
         too_short = 0
         too_long = 0
         unreadable = 0
         excluded_by_path = 0
+
+        print(f"Reader '{self.dataset_name}/{self.split}':")
+
         # до select() таблица совпадает с ds, можно читать напрямую
         audio_col = self.table.column("audio")
 
@@ -254,11 +258,10 @@ class HFDatasetReader(BaseReader):
                 audio_cell = audio_col[i].as_py()
 
                 # Проверяем, не исключен ли этот путь
-                if self.exclude_paths:
-                    audio_path = audio_cell.get("path", "") if isinstance(audio_cell, dict) else ""
-                    if audio_path in self.exclude_paths:
-                        excluded_by_path += 1
-                        continue
+                audio_path = audio_cell.get("path", "")# if isinstance(audio_cell, dict) else ""
+                if audio_path in self.exclude_paths:
+                    excluded_by_path += 1
+                    continue
 
                 dur = self._hf_duration(audio_cell)
                 if dur < self.MIN_AUDIO_SEC:
@@ -266,6 +269,7 @@ class HFDatasetReader(BaseReader):
                 elif dur > self.MAX_AUDIO_SEC:
                     too_long += 1
                 else:
+                    self.audio_paths[audio_path] = len(keep)  # сохраняем индекс в отфильтрованном датасете
                     keep.append(i)
                     keep_durations.append(float(dur))
             except Exception:
@@ -277,7 +281,6 @@ class HFDatasetReader(BaseReader):
         # с индексным маппингом — НЕ используем self.table напрямую
         self.lengths = keep_durations
 
-        print(f"Reader '{self.dataset_name}/{self.split}':")
         print(f"  Original: {original_len} samples")
         if excluded_by_path:
             print(f"  Excluded by path: {excluded_by_path}")
@@ -295,11 +298,15 @@ class HFDatasetReader(BaseReader):
         audio_cell = row["audio"]
         text = row[self.text_col]
         audio = self._hf_audio_to_np(audio_cell)
-        return audio, text, f"{idx}"
+        # возвращаем путь из audio_cell (или оригинальный индекс как fallback)
+        audio_path = audio_cell.get("path")
+        return audio, text, audio_path
 
     def load_audio_from_path(self, path: str):
-        """Load audio from path (idx string for HF dataset) and return as numpy array."""
-        # Для HF dataset path это строка с индексом
-        idx = int(path)
-        audio_cell = self.ds[idx]["audio"]
+        """Load audio from path and return as numpy array (float32, mono, 16kHz)."""
+        # Для HF dataset path это путь из audio_cell["path"]
+        filtered_idx = self.audio_paths.get(path, None)
+        if filtered_idx is None:
+            raise ValueError(f"Audio path '{path}' not found in dataset.")
+        audio_cell = self.ds[filtered_idx]["audio"]
         return self._hf_audio_to_np(audio_cell)
