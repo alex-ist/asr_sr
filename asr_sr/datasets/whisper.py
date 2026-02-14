@@ -64,11 +64,11 @@ class WhisperDataset(Dataset):
         # input_length в Whisper — это количество  входного аудио.
         # а fetures len всегда 3000 фреймов (30s)
         input_length = len(audio)//160
-        idxs = self.tokenizer(text).input_ids
-        if len(idxs) > self.max_target_length:
-            print(f"Warning: target length {len(labels)} exceeds max_target_length at {uid}")
-        
-        labels = torch.LongTensor(idxs)
+
+        labels = self.tokenizer(text, return_tensors="pt").input_ids.squeeze(0)
+        if labels.size(0) > self.max_target_length:
+            print(f"Warning: target length {labels.size(0)} exceeds max_target_length at {uid}")
+
 
         return {
             "input_features": f,
